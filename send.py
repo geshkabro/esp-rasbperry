@@ -5,10 +5,9 @@ import websocket
 import time
 import threading
 
-def capture_screen():
+def capture_screen(monitor_width, monitor_height):
     sct = mss.mss()
-    monitor = sct.monitors[1]  # По умолчанию захватывает первый экран
-    bounding_box = {'top': 0, 'left': 0, 'width': monitor['width'], 'height': monitor['height']}
+    bounding_box = {'top': 0, 'left': 0, 'width': monitor_width, 'height': monitor_height}
 
     while True:
         img = sct.grab(bounding_box)
@@ -19,9 +18,9 @@ def capture_screen():
         img_resized = cv2.resize(img_resized, (240, 135))  # Уменьшаем для передачи
         return img_resized  # Возвращаем одно изображение для передачи
 
-def send_frame(ws):
+def send_frame(ws, monitor_width, monitor_height):
     while True:
-        frame = capture_screen()
+        frame = capture_screen(monitor_width, monitor_height)
 
         # Преобразуем изображение в RGB565
         rgb565 = frame.astype(np.uint16)
@@ -34,12 +33,18 @@ def send_frame(ws):
         # Отправляем данные через WebSocket
         ws.send_binary(data.tobytes())
 
-def on_open(ws):
-    threading.Thread(target=send_frame, args=(ws,)).start()
+def on_open(ws, monitor_width, monitor_height):
+    threading.Thread(target=send_frame, args=(ws, monitor_width, monitor_height)).start()
 
-def run_websocket_server():
-    ws = websocket.WebSocketApp("ws://<IP вашего компьютера>:<порт>/", on_open=on_open)
+def run_websocket_server(ip_address, monitor_width, monitor_height):
+    ws = websocket.WebSocketApp(f"ws://{ip_address}:81/", on_open=lambda ws: on_open(ws, monitor_width, monitor_height))
     ws.run_forever()
 
 if __name__ == "__main__":
-    run_websocket_server()
+    # Запрашиваем у пользователя IP-адрес и разрешение экрана
+    ip_address = input("Введите IP-адрес устройства: ")
+    monitor_width = int(input("Введите ширину экрана (например, 1920): "))
+    monitor_height = int(input("Введите высоту экрана (например, 1080): "))
+
+    # Запускаем сервер WebSocket
+    run_websocket_server(ip_address, monitor_width, monitor_height)
